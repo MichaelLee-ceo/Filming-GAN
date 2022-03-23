@@ -16,13 +16,13 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from sgan.data.loader import data_loader
-from sgan.losses import gan_g_loss, gan_d_loss, l2_loss
-from sgan.losses import displacement_error, final_displacement_error
+from fgan.data.loader import data_loader
+from fgan.losses import gan_g_loss, gan_d_loss, l2_loss
+from fgan.losses import displacement_error, final_displacement_error
 
-from sgan.models import TrajectoryGenerator, TrajectoryDiscriminator
-from sgan.utils import int_tuple, bool_flag, get_total_norm
-from sgan.utils import relative_to_abs, get_dset_path
+from fgan.models import TrajectoryGenerator, TrajectoryDiscriminator
+from fgan.utils import int_tuple, bool_flag, get_total_norm
+from fgan.utils import relative_to_abs, get_dset_path
 
 torch.backends.cudnn.benchmark = True
 

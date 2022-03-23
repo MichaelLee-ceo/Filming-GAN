@@ -1,1 +1,0 @@
-{"D_data_loss": 1.3462443351745605, "_timestamp": 1647852316, "_runtime": 29, "_step": 1275, "D_total_loss": 1.3462443351745605, "G_discriminator_loss": 0.6555306911468506, "G_total_loss": 2.21732497215271, "_wandb": {"runtime": 29}}
