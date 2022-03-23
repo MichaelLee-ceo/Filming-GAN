@@ -127,3 +127,13 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# trajectories training data
+*.txt
+*.pt
+
+# trajectories output results
+*.png
+
+# wandb records
+/wandb
