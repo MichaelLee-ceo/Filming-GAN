@@ -58,7 +58,7 @@ class Decoder(nn.Module):
             decoder_embedding = torch.unsqueeze(decoder_input, 0)                           # increase one dimension (seq_length) for batched input [batch, features] -> [seq_len, batch, features]
             decoder_output, state_tuple = self.decoder(decoder_embedding, state_tuple)
 
-            decoder_output = decoder_output.view(-1, self.hidden_dim)                           # removes the "seq_len" dimension: [seq_len, batch, hidden_dim] -> [batch, hidden_dim]
+            decoder_output = decoder_output.view(-1, self.hidden_dim)                       # removes the "seq_len" dimension: [seq_len, batch, hidden_dim] -> [batch, hidden_dim]
             decoder_input = self.hidden2pos(decoder_output)
 
             pred_traj_fake_rel.append(decoder_input.view(batch_size, -1))

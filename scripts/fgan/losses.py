@@ -1,6 +1,8 @@
 import torch
 import random
 
+torch.manual_seed(10)
+
 mse_loss = torch.nn.MSELoss(reduction='mean')
 
 def bce_loss(input, target):

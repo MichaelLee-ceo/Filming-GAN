@@ -1,7 +1,8 @@
+import torch
 from torch.utils.data import DataLoader
+from fgan.data.trajectories import TrajectoryDataset, seq_collate
 
-from sgan.data.trajectories import TrajectoryDataset, seq_collate
-
+torch.manual_seed(10)
 
 def data_loader(args, path):
     dset = TrajectoryDataset(

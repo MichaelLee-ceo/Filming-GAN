@@ -5,6 +5,9 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 
+torch.manual_seed(10)
+np.random.seed(10)
+
 def mkdir(path):
     if not os.path.exists(path):
         os.makedirs(path)

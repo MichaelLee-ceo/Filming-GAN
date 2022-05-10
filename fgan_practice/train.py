@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 torch.backends.cudnn.benchmark = True
 torch.manual_seed(10)
+np.random.seed(10)
 
 parser = argparse.ArgumentParser()
 # Dataset options
@@ -40,7 +41,7 @@ parser.add_argument('--drop_out', default=0, type=int)
 
 # Model options
 parser.add_argument('--embedding_dim', default=0, type=int)
-parser.add_argument('--hidden_dim', default=32, type=int)
+parser.add_argument('--hidden_dim', default=512, type=int)
 parser.add_argument('--num_layers', default=1, type=int)
 
 args = parser.parse_args()

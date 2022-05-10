@@ -9,6 +9,9 @@ from torch.utils.data import Dataset
 
 logger = logging.getLogger(__name__)
 
+torch.manual_seed(10)
+np.random.seed(10)
+
 
 def seq_collate(data):
     (obs_seq_list, pred_seq_list, obs_seq_rel_list, pred_seq_rel_list,

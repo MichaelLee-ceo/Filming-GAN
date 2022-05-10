@@ -136,4 +136,4 @@ dmypy.json
 *.png
 
 # wandb records
-/wandb/
+**/wandb

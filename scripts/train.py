@@ -22,17 +22,20 @@ from fgan.losses import displacement_error, final_displacement_error
 
 from fgan.models import TrajectoryGenerator, TrajectoryDiscriminator
 from fgan.utils import int_tuple, bool_flag, get_total_norm
-from fgan.utils import relative_to_abs, get_dset_path
+from fgan.utils import relative_to_abs, get_dset_path, mkdir
 
 torch.backends.cudnn.benchmark = True
+torch.manual_seed(10)
+np.random.seed(10)
 
 parser = argparse.ArgumentParser()
-FORMAT = '[%(levelname)s: %(filename)s: %(lineno)4d]: %(message)s'
+# FORMAT = '[%(levelname)s: %(filename)s: %(lineno)4d]: %(message)s'
+FORMAT = '%(message)s'
 logging.basicConfig(level=logging.INFO, format=FORMAT, stream=sys.stdout)
 logger = logging.getLogger(__name__)
 
 # Dataset options
-parser.add_argument('--dataset_name', default='create', type=str)
+parser.add_argument('--dataset_name', default='opensfm', type=str)
 parser.add_argument('--delim', default='tab')
 parser.add_argument('--loader_num_workers', default=1, type=int)
 parser.add_argument('--obs_len', default=8, type=int)
@@ -40,24 +43,24 @@ parser.add_argument('--pred_len', default=8, type=int)
 parser.add_argument('--skip', default=1, type=int)
 
 # Optimization
-parser.add_argument('--batch_size', default=32, type=int)
+parser.add_argument('--batch_size', default=64, type=int)
 parser.add_argument('--num_iterations', default=100, type=int)
-parser.add_argument('--num_epochs', default=200, type=int)
+parser.add_argument('--num_epochs', default=500, type=int)
 
 # Model Options
 parser.add_argument('--embedding_dim', default=16, type=int)
 parser.add_argument('--num_layers', default=1, type=int)
 parser.add_argument('--dropout', default=0, type=float)
-parser.add_argument('--batch_norm', default=1, type=bool_flag)
-parser.add_argument('--mlp_dim', default=64, type=int)
+parser.add_argument('--batch_norm', default=0, type=bool_flag)
+parser.add_argument('--mlp_dim', default=128, type=int)
 
 # Generator Options
 parser.add_argument('--encoder_h_dim_g', default=32, type=int)
 parser.add_argument('--decoder_h_dim_g', default=32, type=int)
-parser.add_argument('--noise_dim', default=(0,), type=int_tuple)
+parser.add_argument('--noise_dim', default=(16,), type=int_tuple)
 parser.add_argument('--noise_type', default='gaussian')
 parser.add_argument('--noise_mix_type', default='global')
-parser.add_argument('--clipping_threshold_g', default=0, type=float)
+parser.add_argument('--clipping_threshold_g', default=1.5, type=float)
 parser.add_argument('--g_learning_rate', default=0.001, type=float)
 parser.add_argument('--g_steps', default=1, type=int)
 
@@ -76,7 +79,7 @@ parser.add_argument('--grid_size', default=0, type=int)
 parser.add_argument('--d_type', default='local', type=str)
 parser.add_argument('--encoder_h_dim_d', default=64, type=int)
 parser.add_argument('--d_learning_rate', default=0.001, type=float)
-parser.add_argument('--d_steps', default=1, type=int)
+parser.add_argument('--d_steps', default=2, type=int)
 parser.add_argument('--clipping_threshold_d', default=0, type=float)
 
 # Loss Options
@@ -85,7 +88,7 @@ parser.add_argument('--best_k', default=1, type=int)
 
 # Output
 parser.add_argument('--output_dir', default=os.getcwd())
-parser.add_argument('--print_every', default=50, type=int)
+parser.add_argument('--print_every', default=10, type=int)
 parser.add_argument('--checkpoint_every', default=1000, type=int)
 parser.add_argument('--checkpoint_name', default='checkpoint')
 parser.add_argument('--checkpoint_start_from', default=None)
@@ -124,26 +127,25 @@ def main(args):
     train_dset, train_loader = data_loader(args, train_path)
 
     logger.info("Initializing val dataset")
-    _, val_loader = data_loader(args, val_path)
+    val_dset, val_loader = data_loader(args, val_path)
 
-    pic_path = './(sgan)' + args.dataset_name + '_/'
-    if not os.path.exists(pic_path):
-        os.makedirs(pic_path)
-        print('[INFO] Creating dir:', pic_path)
+    pic_path = './pic_result/(sgan)' + 'ehg' + str(args.encoder_h_dim_g) + 'dhg' + str(args.decoder_h_dim_g) + 'ehd' + str(args.encoder_h_dim_d) + 'mlp' + str(args.mlp_dim) + 'n' + str(args.noise_dim) + '/'
+    mkdir(pic_path)
 
-    iterations_per_epoch = len(train_dset) / args.batch_size / args.d_steps
+    # iterations_per_epoch = len(train_dset) / args.batch_size / args.d_steps
 
-    print('### len(train_dset)', len(train_dset))
+    print('\n### len(train_dset):', len(train_dset))
+    print('### len(val_dset):', len(val_dset))
 
-    if args.num_epochs:
-        args.num_iterations = int(iterations_per_epoch * args.num_epochs)
+    # if args.num_epochs:
+    #     args.num_iterations = int(iterations_per_epoch * args.num_epochs)
 
-    logger.info('There are {} iterations per epoch'.format(iterations_per_epoch))
-    logger.info('Total iterations: {}'.format(args.num_iterations))
+    # logger.info('There are {} iterations per epoch'.format(iterations_per_epoch))
+    # logger.info('Total iterations: {}'.format(args.num_iterations))
 
     run = wandb.init(
                     project="social-gan",
-                    name = "(" + args.dataset_name + "), noise(" + str(args.noise_dim) + ")",
+                    name =  'ehg' + str(args.encoder_h_dim_g) + 'dhg' + str(args.decoder_h_dim_g) + 'ehd' + str(args.encoder_h_dim_d) + 'em' + str(args.embedding_dim) + 'n' + str(args.noise_dim),
                     # name="obs_len(" + str(args.obs_len) + "), pred_len(" + str(args.pred_len) + "), batch_size(" + str(args.batch_size) + "), num_epochs(" + str(args.num_epochs) + "), noise(" + str(args.noise_dim) + ")",
                     config=args,
                     reinit=True
@@ -244,150 +246,133 @@ def main(args):
 
 
     t0 = None
-    while t < args.num_iterations:
+    for t in range(args.num_epochs):
         gc.collect()
         d_steps_left = args.d_steps
         g_steps_left = args.g_steps
-        epoch += 1
 
-        logger.info('Starting epoch {}'.format(epoch))
+        print('\nStarting epoch [{}/{}]'.format(t, args.num_epochs))
 
         for batch in train_loader:
 
-            '''
-            print('### Batch in train_loader')
-            print(batch[0])
-            print('Batch shape', len(batch[0]))
-            input()
-            '''
-
-            if args.timing == 1:
-                torch.cuda.synchronize()
-                t1 = time.time()
+            # if args.timing == 1:
+            #     torch.cuda.synchronize()
+            #     t1 = time.time()
 
             # Decide whether to use the batch for stepping on discriminator or
             # generator; an iteration consists of args.d_steps steps on the
             # discriminator followed by args.g_steps steps on the generator.
             if d_steps_left > 0:
-                step_type = 'd'
-                losses_d = discriminator_step(args, batch, generator,
-                                              discriminator, d_loss_fn,
-                                              optimizer_d)
-                checkpoint['norm_d'].append(get_total_norm(discriminator.parameters()))
+                losses_d = discriminator_step(args, batch, generator, discriminator, d_loss_fn, optimizer_d)
+                # checkpoint['norm_d'].append(get_total_norm(discriminator.parameters()))
                 d_steps_left -= 1
             elif g_steps_left > 0:
-                step_type = 'g'
-                losses_g = generator_step(args, batch, generator,
-                                          discriminator, g_loss_fn,
-                                          optimizer_g)
-                checkpoint['norm_g'].append(get_total_norm(generator.parameters()))
+                losses_g = generator_step(args, batch, generator, discriminator, g_loss_fn, optimizer_g)
+                # checkpoint['norm_g'].append(get_total_norm(generator.parameters()))
                 g_steps_left -= 1
 
-            if args.timing == 1:
-                torch.cuda.synchronize()
-                t2 = time.time()
-                logger.info('{} step took {}'.format(step_type, t2 - t1))
+            # if args.timing == 1:
+            #     torch.cuda.synchronize()
+            #     t2 = time.time()
+            #     logger.info('{} step took {}'.format(step_type, t2 - t1))
 
             # Skip the rest if we are not at the end of an iteration
             if d_steps_left > 0 or g_steps_left > 0:
                 continue
 
-            if args.timing == 1:
-                if t0 is not None:
-                    logger.info('Interation {} took {}'.format(
-                        t - 1, time.time() - t0
-                    ))
-                t0 = time.time()
-
-            # Maybe save loss
-            if t % args.print_every == 0:
-                logger.info('t = {} / {}'.format(t + 1, args.num_iterations))
-                for k, v in sorted(losses_d.items()):
-                    logger.info('  [D] {}: {:.3f}'.format(k, v))
-                    checkpoint['D_losses'][k].append(v)
-                for k, v in sorted(losses_g.items()):
-                    logger.info('  [G] {}: {:.3f}'.format(k, v))
-                    checkpoint['G_losses'][k].append(v)
-                checkpoint['losses_ts'].append(t)
-
-            
-            # Maybe save a checkpoint
-            if t > 0 and t % args.checkpoint_every == 0:
-                checkpoint['counters']['t'] = t
-                checkpoint['counters']['epoch'] = epoch
-                checkpoint['sample_ts'].append(t)
-
-                # Check stats on the validation set
-                logger.info('Checking stats on val ...')
-                metrics_val = check_accuracy(
-                    args, val_loader, generator, discriminator, d_loss_fn
-                )
-                logger.info('Checking stats on train ...')
-                metrics_train = check_accuracy(
-                    args, train_loader, generator, discriminator,
-                    d_loss_fn, limit=True
-                )
-
-                for k, v in sorted(metrics_val.items()):
-                    logger.info('  [val] {}: {:.3f}'.format(k, v))
-                    checkpoint['metrics_val'][k].append(v)
-                for k, v in sorted(metrics_train.items()):
-                    logger.info('  [train] {}: {:.3f}'.format(k, v))
-                    checkpoint['metrics_train'][k].append(v)
-
-                min_ade = min(checkpoint['metrics_val']['ade'])
-                min_ade_nl = min(checkpoint['metrics_val']['ade_nl'])
-
-                if metrics_val['ade'] == min_ade:
-                    logger.info('New low for avg_disp_error')
-                    checkpoint['best_t'] = t
-                    checkpoint['g_best_state'] = generator.state_dict()
-                    checkpoint['d_best_state'] = discriminator.state_dict()
-
-                if metrics_val['ade_nl'] == min_ade_nl:
-                    logger.info('New low for avg_disp_error_nl')
-                    checkpoint['best_t_nl'] = t
-                    checkpoint['g_best_nl_state'] = generator.state_dict()
-                    checkpoint['d_best_nl_state'] = discriminator.state_dict()
-
-                # Save another checkpoint with model weights and
-                # optimizer state
-                checkpoint['g_state'] = generator.state_dict()
-                checkpoint['g_optim_state'] = optimizer_g.state_dict()
-                checkpoint['d_state'] = discriminator.state_dict()
-                checkpoint['d_optim_state'] = optimizer_d.state_dict()
-                checkpoint_path = os.path.join(
-                    args.output_dir, '%s_with_model.pt' % args.checkpoint_name
-                )
-                logger.info('Saving checkpoint to {}'.format(checkpoint_path))
-                torch.save(checkpoint, checkpoint_path)
-                logger.info('Done.')
-
-                # Save a checkpoint with no model weights by making a shallow
-                # copy of the checkpoint excluding some items
-                checkpoint_path = os.path.join(
-                    args.output_dir, '%s_no_model.pt' % args.checkpoint_name)
-                logger.info('Saving checkpoint to {}'.format(checkpoint_path))
-                key_blacklist = [
-                    'g_state', 'd_state', 'g_best_state', 'g_best_nl_state',
-                    'g_optim_state', 'd_optim_state', 'd_best_state',
-                    'd_best_nl_state'
-                ]
-                small_checkpoint = {}
-                for k, v in checkpoint.items():
-                    if k not in key_blacklist:
-                        small_checkpoint[k] = v
-                torch.save(small_checkpoint, checkpoint_path)
-                logger.info('Done.')
-            
-            
-
-            t += 1
             d_steps_left = args.d_steps
             g_steps_left = args.g_steps
-            if t >= args.num_iterations:
-                break
+
+        # if args.timing == 1:
+        #     if t0 is not None:
+        #         logger.info('Interation {} took {}'.format(t - 1, time.time() - t0))
+        #     t0 = time.time()
+
+        # Maybe save loss
+        if True:
+            # logger.info('t = {} / {}'.format(t + 1, args.num_iterations))
+            for k, v in sorted(losses_d.items()):
+                logger.info('  [D] {}: {:.3f}'.format(k, v))
+                checkpoint['D_losses'][k].append(v)
+                wandb.log({k: v})
+            for k, v in sorted(losses_g.items()):
+                logger.info('  [G] {}: {:.3f}'.format(k, v))
+                checkpoint['G_losses'][k].append(v)
+                wandb.log({k: v})
+            checkpoint['losses_ts'].append(t)
+
+        
+        # Maybe save a checkpoint
+        if True:
+            # checkpoint['counters']['t'] = t
+            # checkpoint['counters']['epoch'] = epoch
+            # checkpoint['sample_ts'].append(t)
+
+            # Check stats on the validation set
+            # logger.info('Checking stats on val ...')
+            metrics_val = check_accuracy(args, val_loader, generator, discriminator, d_loss_fn)
+            # logger.info('Checking stats on train ...')
+            metrics_train = check_accuracy(args, train_loader, generator, discriminator, d_loss_fn)
+
+            for k, v in sorted(metrics_val.items()):
+                logger.info('  [val] {}: {:.3f}'.format(k, v))
+                checkpoint['metrics_val'][k].append(v)
+                wandb.log({'val_' + k: v})
+            for k, v in sorted(metrics_train.items()):
+                logger.info('  [train] {}: {:.3f}'.format(k, v))
+                checkpoint['metrics_train'][k].append(v)
+                wandb.log({'train_' + k: v})
+
+            min_ade = min(checkpoint['metrics_val']['ade'])
+            # min_ade_nl = min(checkpoint['metrics_val']['ade_nl'])
+
+            if metrics_val['ade'] == min_ade:
+                logger.info('New low for avg_disp_error')
+                checkpoint['best_t'] = t
+                checkpoint['g_best_state'] = generator.state_dict()
+                checkpoint['d_best_state'] = discriminator.state_dict()
+                checkpoint_path = os.path.join(args.output_dir, '%s_with_model.pt' % args.checkpoint_name)
+                logger.info('Saving checkpoint to {}'.format(checkpoint_path))
+                torch.save(checkpoint, checkpoint_path)
+
+            # if metrics_val['ade_nl'] == min_ade_nl:
+            #     logger.info('New low for avg_disp_error_nl')
+            #     checkpoint['best_t_nl'] = t
+            #     checkpoint['g_best_nl_state'] = generator.state_dict()
+            #     checkpoint['d_best_nl_state'] = discriminator.state_dict()
+
+            # Save another checkpoint with model weights and
+            # optimizer state
+            # checkpoint['g_state'] = generator.state_dict()
+            # checkpoint['g_optim_state'] = optimizer_g.state_dict()
+            # checkpoint['d_state'] = discriminator.state_dict()
+            # checkpoint['d_optim_state'] = optimizer_d.state_dict()
+            # checkpoint_path = os.path.join(args.output_dir, '%s_with_model.pt' % args.checkpoint_name)
+            # logger.info('Saving checkpoint to {}'.format(checkpoint_path))
+            # torch.save(checkpoint, checkpoint_path)
+            # logger.info('Done.')
+
+            # Save a checkpoint with no model weights by making a shallow
+            # copy of the checkpoint excluding some items
+            # checkpoint_path = os.path.join(args.output_dir, '%s_no_model.pt' % args.checkpoint_name)
+            # logger.info('Saving checkpoint to {}'.format(checkpoint_path))
+            # key_blacklist = [
+            #     'g_state', 'd_state', 'g_best_state', 'g_best_nl_state',
+            #     'g_optim_state', 'd_optim_state', 'd_best_state',
+            #     'd_best_nl_state'
+            # ]
+            # small_checkpoint = {}
+            # for k, v in checkpoint.items():
+            #     if k not in key_blacklist:
+            #         small_checkpoint[k] = v
+            # torch.save(small_checkpoint, checkpoint_path)
+            # logger.info('Done.')
+
     run.finish()
+
+    # restore the generator from the best history state
+    restore_from_checkpoint = torch.load(checkpoint_path)
+    generator.load_state_dict(checkpoint['g_best_state'])
 
     for batch in train_loader:
         batch = [tensor.cuda() for tensor in batch]
@@ -396,13 +381,10 @@ def main(args):
         pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, seq_start_end)
         pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
         
-        print('obs_traj', obs_traj, obs_traj.shape)
+        # print('obs_traj', obs_traj, obs_traj.shape)
         
         traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
-        # print('traj_fake', traj_fake[0], traj_fake[0].shape)
-
         traj_real = torch.cat([obs_traj, pred_traj_gt], dim=0)
-        # print('traj_real', traj_real[0], traj_real[0].shape)
         
         for bs in range(args.batch_size):
             plot_traj(traj_real[:, bs].cpu(), traj_fake[:, bs].cpu(), args.obs_len, 'train_batch_' + str(bs), pic_path)
@@ -416,7 +398,7 @@ def main(args):
         pred_traj_fake_rel = generator(obs_traj, obs_traj_rel, seq_start_end)
         pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
         
-        print('obs_traj', obs_traj, obs_traj.shape)
+        # print('obs_traj', obs_traj, obs_traj.shape)
         
         traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
         traj_real = torch.cat([obs_traj, pred_traj_gt], dim=0)
@@ -454,9 +436,6 @@ def discriminator_step(
     losses['D_data_loss'] = data_loss.item()
     loss += data_loss
     losses['D_total_loss'] = loss.item()
-
-    wandb.log({'D_data_loss': losses['D_data_loss']})
-    wandb.log({'D_total_loss': losses['D_total_loss']})
 
     optimizer_d.zero_grad()
     loss.backward()
@@ -515,9 +494,6 @@ def generator_step(
     losses['G_discriminator_loss'] = discriminator_loss.item()
     losses['G_total_loss'] = loss.item()
 
-    wandb.log({'G_discriminator_loss': losses['G_discriminator_loss']})
-    wandb.log({'G_total_loss': losses['G_total_loss']})
-
     optimizer_g.zero_grad()
     loss.backward()
     if args.clipping_threshold_g > 0:
@@ -530,7 +506,7 @@ def generator_step(
 
 
 def check_accuracy(
-    args, loader, generator, discriminator, d_loss_fn, limit=False
+    args, loader, generator, discriminator, d_loss_fn, limit=True
 ):
     d_losses = []
     metrics = {}
@@ -598,10 +574,6 @@ def check_accuracy(
 
     metrics['ade'] = sum(disp_error) / (total_traj * args.pred_len)
     metrics['fde'] = sum(f_disp_error) / total_traj
-
-    if limit:
-        wandb.log({'ADE': metrics['ade']})
-        wandb.log({'FDE': metrics['fde']})
 
     if total_traj_l != 0:
         metrics['ade_l'] = sum(disp_error_l) / (total_traj_l * args.pred_len)

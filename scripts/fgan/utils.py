@@ -6,6 +6,9 @@ import inspect
 from contextlib import contextmanager
 import subprocess
 
+torch.manual_seed(10)
+np.random.seed(10)
+
 
 def int_tuple(s):
     return tuple(int(i) for i in s.split(','))
@@ -93,3 +96,8 @@ def relative_to_abs(rel_traj, start_pos):
     start_pos = torch.unsqueeze(start_pos, dim=1)
     abs_traj = displacement + start_pos
     return abs_traj.permute(1, 0, 2)
+
+def mkdir(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+        print('[INFO] Creating dir:', path)

@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+torch.manual_seed(10)
 
 def make_mlp(dim_list, activation='relu', batch_norm=True, dropout=0):
     layers = []
