@@ -10,7 +10,7 @@ from loader import data_loader
 import argparse
 from collections import defaultdict
 import wandb
-from utils import mkdir, get_dset_path, relative_to_abs, plot_traj, check_accuracy
+from utils import mkdir, get_dset_path, relative_to_abs, plot_traj, check_accuracy, l2_loss
 from model_zoo.seq2seq import Seq2Seq
 from model_zoo.single_lstm import SingleLSTM
 
@@ -41,7 +41,7 @@ parser.add_argument('--drop_out', default=0, type=int)
 
 # Model options
 parser.add_argument('--embedding_dim', default=0, type=int)
-parser.add_argument('--hidden_dim', default=512, type=int)
+parser.add_argument('--hidden_dim', default=256, type=int)
 parser.add_argument('--num_layers', default=1, type=int)
 
 args = parser.parse_args()
@@ -85,7 +85,7 @@ for name in datasets:
     model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    criterion = torch.nn.MSELoss()
+    # criterion = torch.nn.MSELoss()
 
     checkpoint = {
         'best_model_state': None,
@@ -96,6 +96,7 @@ for name in datasets:
 
     for epoch in range(1, epochs + 1):
         total_loss = 0
+        # loss_mask_sum = 0
         for idx, batch in enumerate(train_loader):
             batch = [tensor.to(device) for tensor in batch]
             (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_rel_gt, non_linear_ped, loss_mask, seq_start_end) = batch
@@ -103,14 +104,18 @@ for name in datasets:
             pred_traj_rel_fake = model(obs_traj_rel)
             # pred_traj_fake = relative_to_abs(pred_traj_rel_fake, obs_traj[-1])
 
-            loss = criterion(pred_traj_rel_fake, pred_traj_rel_gt)
+            loss = l2_loss(pred_traj_rel_fake, pred_traj_rel_gt, loss_mask[:, args.obs_len:], mode='average')
+
+            # loss = criterion(pred_traj_rel_fake, pred_traj_rel_gt)
             total_loss += loss.item()
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-        wandb.log({'loss': total_loss / len(train_loader)})
+            # loss_mask_sum += torch.numel(loss_mask.data)
+
+        wandb.log({'loss': total_loss})
 
         logger.info('\nEpoch: ' + str(epoch) + '/' + str(epochs))
         metrics_train = check_accuracy(args, train_loader, model)
