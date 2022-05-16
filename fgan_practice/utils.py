@@ -1,4 +1,5 @@
 import os
+import csv
 import torch
 import torch.optim
 import matplotlib.pyplot as plt
@@ -37,9 +38,9 @@ def relative_to_abs(rel_traj, start_pos):
     return abs_traj.permute(1, 0, 2)
 
 
-def plot_traj(real_traj, fake_traj, real_traj_len, pic_path, image_path='trajectory'):
+def plot_traj(real_traj, fake_traj, real_traj_len, pic_path, img_path='trajectory', overlapping=False, to_csv=False):
 
-    image_path = pic_path + image_path
+    image_path = pic_path + img_path
 
     real_traj = real_traj.detach().numpy()
     fake_traj = fake_traj.detach().numpy()
@@ -50,36 +51,66 @@ def plot_traj(real_traj, fake_traj, real_traj_len, pic_path, image_path='traject
 
     # print('\n### Real_traj', real_traj)
     # print('### Fake_traj', fake_traj)
-    print('### Difference:', np.sum(real_traj - fake_traj, axis=0))
+    # print('### Difference:', np.sum(real_traj - fake_traj, axis=0))
 
-    fig = plt.figure(figsize=plt.figaspect(0.4))
+    # fig = plt.figure(figsize=plt.figaspect(0.4))
+    fig = plt.figure()
 
     # ax = plt.axes(projection='3d')
     # ax.scatter3D(0, 0, 0, c='b')
 
-    ax = fig.add_subplot(1, 2, 1, projection='3d')
-    ax.plot(real_x[:real_traj_len], real_y[:real_traj_len], real_z[:real_traj_len], c='dodgerblue')
-    ax.plot(real_x[real_traj_len - 1:], real_y[real_traj_len - 1:], real_z[real_traj_len - 1:], c='orange')
-    plt.title("Real_traj")
-    ax.set_xlabel('x')
-    ax.set_ylabel('y')
-    ax.set_zlabel('z')
-    # ax.set_zlim3d(min(real_z), max(np.abs(real_x)))
+    if not overlapping:
+        # plot figure 1
+        ax = fig.add_subplot(1, 2, 1, projection='3d')
+        ax.plot(real_x[:real_traj_len], real_y[:real_traj_len], real_z[:real_traj_len], c='gray')
+        ax.plot(real_x[real_traj_len - 1:], real_y[real_traj_len - 1:], real_z[real_traj_len - 1:], c='orange')
+        plt.title("Real_traj")
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        ax.set_zlabel('z')
 
-    ax = fig.add_subplot(1, 2, 2, projection='3d')
-    ax.plot(fake_x[:real_traj_len], fake_y[:real_traj_len], fake_z[:real_traj_len], c='dodgerblue')
-    ax.plot(fake_x[real_traj_len - 1:], fake_y[real_traj_len - 1:], fake_z[real_traj_len - 1:], c='orange')
-    plt.title("Fake_traj")
-    ax.set_xlabel('x')
-    ax.set_ylabel('y')
-    ax.set_zlabel('z')
-    # ax.set_zlim3d(min(z), max(np.abs(x)))
-    # ax.set_title('Trajectory of video ' + str(i))
+        ax = fig.add_subplot(1, 2, 2, projection='3d')
+        ax.plot(fake_x[:real_traj_len], fake_y[:real_traj_len], fake_z[:real_traj_len], c='gray')
+        ax.plot(fake_x[real_traj_len - 1:], fake_y[real_traj_len - 1:], fake_z[real_traj_len - 1:], c='fuchsia')
+        plt.title("Fake_traj")
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        ax.set_zlabel('z')
+    else:
+        # plot figure 2
+        ax = plt.axes(projection='3d')
+        ax.plot(real_x[:real_traj_len], real_y[:real_traj_len], real_z[:real_traj_len], c='gray')
+        ax.plot(real_x[real_traj_len - 1:], real_y[real_traj_len - 1:], real_z[real_traj_len - 1:], c='orange')
+        ax.plot(fake_x[:real_traj_len], fake_y[:real_traj_len], fake_z[:real_traj_len], c='gray')
+        ax.plot(fake_x[real_traj_len - 1:], fake_y[real_traj_len - 1:], fake_z[real_traj_len - 1:], c='fuchsia')
+        plt.title("Drone_Trajectory")
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        ax.set_zlabel('z')
+
     plt.savefig(image_path + '.png', dpi=200)
     print('[INFO] plt.save ' + image_path + '.png')
 
     # plt.show()
     plt.close()
+
+    
+    if to_csv:
+        mkdir(pic_path + 'csv/real/')
+        real_stack = np.transpose([real_x, real_y, real_z])
+        real = torch.tensor(real_stack, dtype=torch.float32)
+        with open(pic_path + 'csv/real/' + img_path + '.csv', 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerows(real.tolist())
+        print('[INFO] Saving' + pic_path + 'csv/real/' + img_path + '.csv')
+
+        mkdir(pic_path + 'csv/fake/')
+        fake_stack = np.transpose([fake_x, fake_y, fake_z])
+        fake = torch.tensor(fake_stack, dtype=torch.float32)
+        with open(pic_path + 'csv/fake/' + img_path + '.csv', 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerows(fake.tolist())
+        print('[INFO] Saving' + pic_path + 'csv/fake/' + img_path + '.csv')
 
 
 def check_accuracy(args, loader, model):

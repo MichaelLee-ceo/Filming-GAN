@@ -12,7 +12,6 @@ from collections import defaultdict
 import wandb
 from utils import mkdir, get_dset_path, relative_to_abs, plot_traj, check_accuracy, l2_loss
 from model_zoo.seq2seq import Seq2Seq
-from model_zoo.single_lstm import SingleLSTM
 
 
 FORMAT = '%(message)s'
