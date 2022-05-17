@@ -109,10 +109,10 @@ class TrajectoryDataset(Dataset):
         count = 0
         for path in all_files:
             print('### Reading file', path)
-
             data = read_file(path, delim)
 
-            # print('data', data)
+            # standardization
+            data[:, 2:] = (data[:, 2:] - np.mean(data[:, 2:], axis=0)) / np.std(data[:, 2:], axis=0)
 
             frames = np.unique(data[:, 0]).tolist()
             frame_data = []

@@ -134,6 +134,7 @@ dmypy.json
 
 # trajectories output results
 *.png
+*.csv
 gen_result/
 
 # wandb records

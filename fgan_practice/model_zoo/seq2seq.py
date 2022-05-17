@@ -13,7 +13,7 @@ class Encoder(nn.Module):
 
         # embedding [x, y, z] to embedding_dim
         # self.embedding = nn.Linear(3, embedding_dim)
-        self.encoder = nn.LSTM(input_size=3, hidden_size=hidden_dim, num_layers=num_layers)
+        self.encoder = nn.LSTM(input_size=3, hidden_size=hidden_dim, num_layers=num_layers, dropout=drop_out)
 
         # self.dropout = nn.Dropout(drop_out)
 
@@ -40,7 +40,7 @@ class Decoder(nn.Module):
 
         # embedding [x, y, z] to [embedding_dim]
         # self.embedding = nn.Linear(3, embedding_dim)
-        self.decoder = nn.LSTM(input_size=3, hidden_size=hidden_dim, num_layers=num_layers)
+        self.decoder = nn.LSTM(input_size=3, hidden_size=hidden_dim, num_layers=num_layers, dropout=drop_out)
         self.hidden2pos = nn.Linear(hidden_dim, 3)
 
         # self.dropout = nn.Dropout(drop_out)

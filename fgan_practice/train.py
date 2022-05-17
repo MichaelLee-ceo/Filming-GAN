@@ -29,14 +29,14 @@ parser.add_argument('--delim', default='tab')
 parser.add_argument('--obs_len', default=8, type=int)
 parser.add_argument('--pred_len', default=8, type=int)
 parser.add_argument('--skip', default=1, type=int)
+parser.add_argument('--pic_path', default='opensfm_test', type=str)
 parser.add_argument('--model_path', default=os.path.join(os.getcwd(), 'models'), type=str)
 
 # Optimization
 parser.add_argument('--batch_size', default=64, type=int)
-parser.add_argument('--pic_path', default='opensfm_test', type=str)
 parser.add_argument('--num_epochs', default=500, type=int)
 parser.add_argument('--lr', default=0.001, type=float)
-parser.add_argument('--drop_out', default=0, type=int)
+parser.add_argument('--drop_out', default=0.5, type=int)
 
 # Model options
 parser.add_argument('--embedding_dim', default=0, type=int)

@@ -26,7 +26,7 @@ parser.add_argument('--hidden_dim', default=256, type=int)
 parser.add_argument('--num_layers', default=1, type=int)
 parser.add_argument('--drop_out', default=0, type=int)
 # Generation options
-parser.add_argument('--best_epoch', default=367, type=int)
+parser.add_argument('--best_epoch', default=308, type=int)
 parser.add_argument('--gen_len', default=16, type=int)
 args = parser.parse_args()
 

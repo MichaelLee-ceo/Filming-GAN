@@ -1,12 +1,17 @@
 import logging
 import os
 import math
+
 import numpy as np
+
 import torch
 from torch.utils.data import Dataset
 
+logger = logging.getLogger(__name__)
+
 torch.manual_seed(10)
 np.random.seed(10)
+
 
 def seq_collate(data):
     (obs_seq_list, pred_seq_list, obs_seq_rel_list, pred_seq_rel_list,
@@ -104,10 +109,10 @@ class TrajectoryDataset(Dataset):
         count = 0
         for path in all_files:
             print('### Reading file', path)
-
             data = read_file(path, delim)
 
-            # print('data', data)
+            # standardization
+            data[:, 2:] = (data[:, 2:] - np.mean(data[:, 2:], axis=0)) / np.std(data[:, 2:], axis=0)
 
             frames = np.unique(data[:, 0]).tolist()
             frame_data = []
@@ -115,13 +120,10 @@ class TrajectoryDataset(Dataset):
                 frame_data.append(data[frame == data[:, 0], :])
             num_sequences = int(math.ceil((len(frames) - self.seq_len + 1) / skip))
 
-            # print('num_sequences', num_sequences)
-
             for idx in range(0, num_sequences * self.skip + 1, skip):
-                curr_seq_data = np.concatenate(frame_data[idx:idx + self.seq_len], axis=0)	# curr_seq_data = [i: i+self.seq_len], concatenate: append, 3D -> 2D
+                curr_seq_data = np.concatenate(frame_data[idx:idx + self.seq_len], axis=0)	# curr_seq_data = [i: i+self.seq_len]
                 # print('curr_seq_data', curr_seq_data)
 
-                # count unique pedestrains in sequence data
                 peds_in_curr_seq = np.unique(curr_seq_data[:, 1])
                 # print('peds_in_curr_seq', peds_in_curr_seq)
 
@@ -132,7 +134,7 @@ class TrajectoryDataset(Dataset):
                 _non_linear_ped = []
 
                 for _, ped_id in enumerate(peds_in_curr_seq):
-                    curr_ped_seq = curr_seq_data[curr_seq_data[:, 1] == ped_id, :]		# get sequence_data by ped_id's
+                    curr_ped_seq = curr_seq_data[curr_seq_data[:, 1] == ped_id, :]		# get ped_id's seq
                     # print('### curr_ped_seq for loop:', curr_ped_seq)
 
                     curr_ped_seq = np.around(curr_ped_seq, decimals=4)
@@ -142,7 +144,7 @@ class TrajectoryDataset(Dataset):
                     if pad_end - pad_front != self.seq_len:
                         continue
 
-                    curr_ped_seq = np.transpose(curr_ped_seq[:, 2:])                    # transpose to 3 rows, (x, y, z) for each row
+                    curr_ped_seq = np.transpose(curr_ped_seq[:, 2:])
                     curr_ped_seq = curr_ped_seq
 
                     # Make coordinates relative
@@ -171,7 +173,7 @@ class TrajectoryDataset(Dataset):
         # print(count)
         self.num_seq = len(seq_list)
         # print('seq_list', seq_list)
-        print('self.num_seq', self.num_seq)
+        # print('self.num_seq', self.num_seq)
 
         seq_list = np.concatenate(seq_list, axis=0)
         seq_list_rel = np.concatenate(seq_list_rel, axis=0)
