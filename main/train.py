@@ -39,22 +39,22 @@ parser.add_argument('--num_epochs', default=500, type=int)
 parser.add_argument('--embedding_dim', default=16, type=int)
 parser.add_argument('--num_layers', default=1, type=int)
 parser.add_argument('--dropout', default=0, type=float)
-parser.add_argument('--activation', default='relu', type=str)
+parser.add_argument('--activation', default='leakyrelu', type=str)
 parser.add_argument('--batch_norm', default=True, type=bool)
 
 # Generator Options
-parser.add_argument('--encoder_h_dim_g', default=32, type=int)
-parser.add_argument('--decoder_h_dim_g', default=32, type=int)
+parser.add_argument('--encoder_h_dim_g', default=64, type=int)
+parser.add_argument('--decoder_h_dim_g', default=64, type=int)
 parser.add_argument('--g_mlp_dim', default=64, type=int)
-parser.add_argument('--noise_dim', default=8, type=int)
+parser.add_argument('--noise_dim', default=16, type=int)
 parser.add_argument('--noise_type', default='gaussian', type=str)
-parser.add_argument('--clipping_threshold_g', default=1.0, type=float)
+parser.add_argument('--clipping_threshold_g', default=1.5, type=float)
 parser.add_argument('--g_learning_rate', default=0.001, type=float)
 parser.add_argument('--g_steps', default=1, type=int)
 
 # Discriminator Options
 parser.add_argument('--encoder_h_dim_d', default=128, type=int)
-parser.add_argument('--d_mlp_dim', default=64, type=int)
+parser.add_argument('--d_mlp_dim', default=128, type=int)
 parser.add_argument('--clipping_threshold_d', default=0, type=float)
 parser.add_argument('--d_learning_rate', default=0.001, type=float)
 parser.add_argument('--d_steps', default=1, type=int)
@@ -192,7 +192,7 @@ def main(args):
         # saving best model state for the lowest average_displacement_error
         min_ade = min(checkpoint['metrics_val']['ade'])
         if metrics_val['ade'] == min_ade:
-            logger.info('\nNew low for avg_disp_error')
+            logger.info('[INFO] New low for avg_disp_error')
             checkpoint['best_epoch'] = epoch
             checkpoint['best_g_state'] = generator.state_dict()
             checkpoint['best_d_state'] = discriminator.state_dict()

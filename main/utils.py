@@ -19,7 +19,7 @@ def get_dset_path(dset_name, dset_type):
     _dir = os.path.dirname(__file__)
     _dir = _dir.split("/")
     _dir = "/".join(_dir)
-    return os.path.join(_dir, "./data/dataset", dset_name, dset_type)
+    return os.path.join(_dir, "data/dataset", dset_name, dset_type)
 
 
 def relative_to_abs(rel_traj, start_pos):

@@ -20,6 +20,7 @@ parser.add_argument('--loader_num_workers', default=1, type=int)
 parser.add_argument('--obs_len', default=8, type=int)
 parser.add_argument('--pred_len', default=8, type=int)
 parser.add_argument('--skip', default=1, type=int)
+
 # Model Options
 parser.add_argument('--embedding_dim', default=16, type=int)
 parser.add_argument('--num_layers', default=1, type=int)
@@ -27,22 +28,27 @@ parser.add_argument('--dropout', default=0, type=float)
 parser.add_argument('--batch_norm', default=0, type=bool_flag)
 parser.add_argument('--mlp_dim', default=128, type=int)
 parser.add_argument('--batch_size', default=32, type=int)
-parser.add_argument('--model_path', default=os.path.join(os.getcwd(), 'models'), type=str)
+
 # Generator Options
 parser.add_argument('--encoder_h_dim_g', default=32, type=int)
 parser.add_argument('--decoder_h_dim_g', default=32, type=int)
 parser.add_argument('--noise_dim', default=(8,), type=int_tuple)
 parser.add_argument('--noise_type', default='gaussian')
 parser.add_argument('--noise_mix_type', default='global')
+
 # Pooling Options
 parser.add_argument('--pooling_type', default=None)
 parser.add_argument('--pool_every_timestep', default=0, type=bool_flag)
+
 # Pool Net Option
 parser.add_argument('--bottleneck_dim', default=32, type=int)
+
 # Social Pooling Options
 parser.add_argument('--neighborhood_size', default=0.0, type=float)
 parser.add_argument('--grid_size', default=0, type=int)
+
 # Generation options
+parser.add_argument('--model_path', default=os.path.join(os.getcwd(), 'models'), type=str)
 parser.add_argument('--best_epoch', default=236, type=int)
 parser.add_argument('--gen_len', default=16, type=int)
 args = parser.parse_args()
@@ -55,10 +61,6 @@ print('### len(val_loader):', len(val_loader))
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print('\n[INFO] Using', device, 'for generation.')
-
-
-best_epoch = args.best_epoch
-gen_len = args.gen_len
 
 generator = TrajectoryGenerator(
                 obs_len=args.obs_len,
@@ -83,11 +85,12 @@ generator.type(torch.cuda.FloatTensor).eval()
 generator.to(device)
 
 # restoring generator from previous checkpoint
-restore_path = os.path.join(args.model_path, 'model_%d.pt' % best_epoch)
+restore_path = os.path.join(args.model_path, 'model_%d.pt' % args.best_epoch)
 checkpoint = torch.load(restore_path)
 generator.load_state_dict(checkpoint['g_best_state'])
-generator.decoder.seq_len = gen_len                                        # set model's predict_length to gen_legnth
 print('Restoring from checkpoint {}'.format(restore_path))
+
+generator.decoder.seq_len = args.gen_len                                        # set model's predict_length to gen_legnth
 
 gen_path = './(sgan)gen_result/' + 'model_' + str(args.best_epoch) + '/'
 mkdir(gen_path)
