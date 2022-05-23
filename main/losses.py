@@ -1,7 +1,8 @@
 import torch
-import random
+import numpy as np
 
 torch.manual_seed(10)
+# np.random.seed(10)
 
 mse_loss = torch.nn.MSELoss(reduction='mean')
 
@@ -34,7 +35,7 @@ def gan_g_loss(scores_fake):
     Output:
     - loss: Tensor of shape (,) giving GAN generator loss
     """
-    y_fake = torch.ones_like(scores_fake) * random.uniform(0.7, 1.2)
+    y_fake = torch.ones_like(scores_fake) * np.random.uniform(0.7, 1.2)
     # y_fake = torch.ones_like(scores_fake)
     return bce_loss(scores_fake, y_fake)
 
@@ -47,8 +48,8 @@ def gan_d_loss(scores_real, scores_fake):
     Output:
     - loss: Tensor of shape (,) giving GAN discriminator loss
     """
-    y_real = torch.ones_like(scores_real) * random.uniform(0.7, 1.2)
-    y_fake = torch.zeros_like(scores_fake) * random.uniform(0, 0.3)
+    y_real = torch.ones_like(scores_real) * np.random.uniform(0.7, 1.2)
+    y_fake = torch.zeros_like(scores_fake) * np.random.uniform(0, 0.3)
     # y_real = torch.ones_like(scores_real)
     # y_fake = torch.zeros_like(scores_fake)
     loss_real = bce_loss(scores_real, y_real)
