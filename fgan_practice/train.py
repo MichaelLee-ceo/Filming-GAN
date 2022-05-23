@@ -6,7 +6,7 @@ import torch.optim
 import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
-from loader import data_loader
+from data.loader import data_loader
 import argparse
 from collections import defaultdict
 import wandb
@@ -36,7 +36,7 @@ parser.add_argument('--model_path', default=os.path.join(os.getcwd(), 'models'),
 parser.add_argument('--batch_size', default=64, type=int)
 parser.add_argument('--num_epochs', default=500, type=int)
 parser.add_argument('--lr', default=0.001, type=float)
-parser.add_argument('--drop_out', default=0.5, type=int)
+parser.add_argument('--drop_out', default=0, type=int)
 
 # Model options
 parser.add_argument('--embedding_dim', default=0, type=int)
@@ -74,7 +74,7 @@ for name in datasets:
 
     run = wandb.init(
             project="seq2seq",
-            name= "dataset(" + name + "), lr(" + str(args.lr) +  "), embedding_dim(" + str(args.embedding_dim) + "), dropout(" + str(args.drop_out) + "), hidden_dim(" + str(args.hidden_dim) + ")",
+            name= "L2(" + name + "), lr(" + str(args.lr) +  "), embedding_dim(" + str(args.embedding_dim) + "), dropout(" + str(args.drop_out) + "), hidden_dim(" + str(args.hidden_dim) + ")",
             config=args,
             reinit=True
         )

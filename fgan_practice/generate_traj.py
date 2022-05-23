@@ -2,7 +2,7 @@ import os
 import torch
 import torch.optim
 import numpy as np
-from loader import data_loader
+from data.loader import data_loader
 import argparse
 from utils import mkdir, get_dset_path, relative_to_abs, plot_traj
 from model_zoo.seq2seq import Seq2Seq
@@ -27,7 +27,7 @@ parser.add_argument('--num_layers', default=1, type=int)
 parser.add_argument('--drop_out', default=0, type=int)
 # Generation options
 parser.add_argument('--best_epoch', default=308, type=int)
-parser.add_argument('--gen_len', default=16, type=int)
+parser.add_argument('--gen_len', default=24, type=int)
 args = parser.parse_args()
 
 
