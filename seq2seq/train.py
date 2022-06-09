@@ -3,10 +3,11 @@ import sys
 import logging
 import torch
 import torch.optim
+from torch.utils.data import random_split
 import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
-from data.loader import data_loader
+from data.loader import data_loader, dataset_loader
 import argparse
 from collections import defaultdict
 import wandb
@@ -48,10 +49,15 @@ args = parser.parse_args()
 datasets = ['opensfm']
 for name in datasets:
     train_path = get_dset_path(name, 'train')
-    train_dset, train_loader = data_loader(args, train_path)
+    dataset = dataset_loader(args, train_path)
 
-    val_path = get_dset_path(name, 'val')
-    val_dset, val_loader = data_loader(args, val_path)
+    train_size = int(len(dataset) * 0.8)
+    val_size = len(dataset) - train_size
+
+    train_dset, val_dset = random_split(dataset, [train_size, val_size])
+
+    train_loader = data_loader(args, train_dset)
+    val_loader = data_loader(args, val_dset)
 
     print('\n### len(train_dset):', len(train_dset))
     print('### len(val_dset):', len(val_dset))

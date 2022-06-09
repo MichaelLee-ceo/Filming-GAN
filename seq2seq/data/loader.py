@@ -10,14 +10,16 @@ def seed_worker(worker_id):
     np.random.seed(worker_seed)
     random.seed(worker_seed)
 
-def data_loader(args, path):
+def dataset_loader(args, path):
     dset = TrajectoryDataset(
         path,
         obs_len=args.obs_len,
         pred_len=args.pred_len,
         skip=args.skip,
         delim=args.delim)
+    return dset
 
+def data_loader(args, dset):
     loader = DataLoader(
         dset,
         batch_size=args.batch_size,
@@ -25,4 +27,4 @@ def data_loader(args, path):
         # worker_init_fn=seed_worker,
         num_workers=1,
         collate_fn=seq_collate)
-    return dset, loader
+    return loader

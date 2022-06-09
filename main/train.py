@@ -6,12 +6,14 @@ import logging
 import wandb
 import numpy as np
 import torch
+from torch.utils.data import random_split
 from collections import defaultdict
 
-from data.loader import data_loader
+from data.loader import dataset_loader, data_loader
 from losses import gan_g_loss, gan_d_loss, l2_loss
 from utils import mkdir, get_dset_path, relative_to_abs, plot_traj, check_accuracy
 from model_zoo.model import Generator, Discriminator
+from model_zoo.model import get_noise
 
 
 parser = argparse.ArgumentParser()
@@ -43,9 +45,9 @@ parser.add_argument('--activation', default='relu', type=str)
 parser.add_argument('--batch_norm', default=True, type=bool)
 
 # Generator Options
-parser.add_argument('--encoder_h_dim_g', default=64, type=int)
-parser.add_argument('--decoder_h_dim_g', default=64, type=int)
-parser.add_argument('--g_mlp_dim', default=64, type=int)
+parser.add_argument('--encoder_h_dim_g', default=128, type=int)
+parser.add_argument('--decoder_h_dim_g', default=256, type=int)
+parser.add_argument('--g_mlp_dim', default=128, type=int)
 parser.add_argument('--noise_dim', default=16, type=int)
 parser.add_argument('--noise_type', default='gaussian', type=str)
 parser.add_argument('--clipping_threshold_g', default=1.5, type=float)
@@ -53,7 +55,7 @@ parser.add_argument('--g_learning_rate', default=0.001, type=float)
 parser.add_argument('--g_steps', default=1, type=int)
 
 # Discriminator Options
-parser.add_argument('--encoder_h_dim_d', default=128, type=int)
+parser.add_argument('--encoder_h_dim_d', default=256, type=int)
 parser.add_argument('--d_mlp_dim', default=128, type=int)
 parser.add_argument('--clipping_threshold_d', default=0, type=float)
 parser.add_argument('--d_learning_rate', default=0.001, type=float)
@@ -69,10 +71,18 @@ parser.add_argument('--pic_path', default='fgan_test', type=str)
 
 def main(args):
     train_path = get_dset_path(args.dataset_name, 'train')
-    train_dset, train_loader = data_loader(args, train_path)
+    dataset = dataset_loader(args, train_path)
 
-    val_path = get_dset_path(args.dataset_name, 'val')
-    val_dset, val_loader = data_loader(args, val_path)
+    train_size = int(len(dataset) * 0.8)
+    val_size = len(dataset) - train_size
+
+    train_dset, val_dset = random_split(dataset, [train_size, val_size])
+
+    train_loader = data_loader(args, train_dset)
+    val_loader = data_loader(args, val_dset)
+
+    # val_path = get_dset_path(args.dataset_name, 'val')
+    # val_dset, val_loader = data_loader(args, val_path)
 
     print('\n### len(train_dset):', len(train_dset))
     print('### len(val_dset):', len(val_dset))
@@ -253,9 +263,9 @@ def generator_step(args, batch, generator, discriminator, g_loss_fn, optimizer_g
 
         # appending l2_loss
         if args.l2_loss_weight > 0:
-            g_l2_loss_rel.append(args.l2_loss_weight * l2_loss(pred_traj_fake_rel, pred_traj_gt_rel, loss_mask, mode='average'))
+            g_l2_loss_rel.append(args.l2_loss_weight * l2_loss(pred_traj_fake_rel, pred_traj_gt_rel, loss_mask, mode='raw'))
 
-    '''
+    g_l2_loss_sum_rel = 0
     if args.l2_loss_weight > 0:
         g_l2_loss_rel = torch.stack(g_l2_loss_rel, dim=1)
         for start, end in seq_start_end.data:
@@ -265,9 +275,22 @@ def generator_step(args, batch, generator, discriminator, g_loss_fn, optimizer_g
             g_l2_loss_sum_rel += _g_l2_loss_rel
         losses['G_l2_loss_rel'] = g_l2_loss_sum_rel.item()
         loss += g_l2_loss_sum_rel
+    
+
+    '''
+    # mode seeking loss
+    noise_shape = (obs_traj_rel.shape[1], args.noise_dim)
+    z1 = get_noise(noise_shape, args.noise_type)
+    z2 = get_noise(noise_shape, args.noise_type)
+    fake_traj_rel_1 = generator(obs_traj_rel, z1)
+    fake_traj_rel_2 = generator(obs_traj_rel, z2)
+
+    lz = torch.mean(torch.abs(fake_traj_rel_2 - fake_traj_rel_1)) / torch.mean(torch.abs(z2 - z1))
+    loss_lz = 10 * lz
+    loss -= loss_lz
+    losses['mode_seeking_loss'] = loss_lz
     '''
 
-    loss += sum(g_l2_loss_rel)
 
     # traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
     traj_fake_rel = torch.cat([obs_traj_rel, pred_traj_fake_rel], dim=0)

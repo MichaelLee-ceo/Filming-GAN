@@ -123,7 +123,7 @@ class Generator(nn.Module):
         mlp_context_dims = [encoder_h_dim, mlp_dim, decoder_h_dim-self.noise_dim]
         self.encoder_compression = make_mlp(mlp_context_dims, activation=activation, batch_norm=batch_norm, dropout=dropout)
 
-    def add_noise(self, _input):
+    def add_noise(self, _input, user_noise=None):
         '''
         Inputs:
         - _input: Tensor of shape ( _, decoder_h_dim - noise_dim )
@@ -133,12 +133,16 @@ class Generator(nn.Module):
         '''
 
         noise_shape = (_input.size(0), self.noise_dim)
-        z = get_noise(noise_shape, self.noise_type)
+
+        if user_noise == None:
+            z = get_noise(noise_shape, self.noise_type)
+        else:
+            z = user_noise
 
         decoder_h = torch.cat([_input, z], dim=1)
         return decoder_h
 
-    def forward(self, obs_traj_rel):
+    def forward(self, obs_traj_rel, user_noise=None):
         '''
         Inputs:
         - obs_traj_rel: Tensor of shape (obs_len, batch, 3)
@@ -152,8 +156,7 @@ class Generator(nn.Module):
 
         # Add noise
         compressed_encoder_hn = self.encoder_compression(encoder_hn)
-        
-        decoder_h = self.add_noise(compressed_encoder_hn)
+        decoder_h = self.add_noise(compressed_encoder_hn, user_noise)
         decoder_h = torch.unsqueeze(decoder_h, 0)
         decoder_c = torch.zeros(self.num_layers, batch_size, self.decoder_h_dim).cuda()
 
