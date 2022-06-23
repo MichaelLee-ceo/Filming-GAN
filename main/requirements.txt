@@ -1,6 +1,5 @@
 # system
 argparse
-logging
 sys
 
 # web crawler
