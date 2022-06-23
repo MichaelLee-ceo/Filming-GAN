@@ -1,0 +1,18 @@
+# system
+argparse
+logging
+sys
+
+# web crawler
+requests
+beautifulsoup4
+
+# mathematics
+numpy
+
+# plot
+matpoltlib
+
+# machine learning
+sklearn
+tensorflow
