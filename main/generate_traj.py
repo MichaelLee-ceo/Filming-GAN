@@ -23,7 +23,7 @@ parser.add_argument('--skip', default=1, type=int)
 parser.add_argument('--batch_size', default=16, type=int)
 
 # Model Options
-parser.add_argument('--embedding_dim', default=16, type=int)
+parser.add_argument('--embedding_dim', default=0, type=int)
 parser.add_argument('--num_layers', default=1, type=int)
 parser.add_argument('--dropout', default=0, type=float)
 parser.add_argument('--activation', default='leakyrelu', type=str)
@@ -88,7 +88,7 @@ mkdir(gen_path)
 
 gen_count = 0
 for batch in val_loader:
-    if np.random.randint(1, 10) % 4 == 0:               # random selections from val_dataset for generating trajectories
+    if np.random.randint(1, 10) % 5 == 0:               # random selections from val_dataset for generating trajectories
         batch = [tensor.cuda() for tensor in batch]
         (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_ped, loss_mask, seq_start_end) = batch
 

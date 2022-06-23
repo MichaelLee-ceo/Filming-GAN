@@ -38,7 +38,7 @@ parser.add_argument('--batch_size', default=64, type=int)
 parser.add_argument('--num_epochs', default=500, type=int)
 
 # Model Options
-parser.add_argument('--embedding_dim', default=16, type=int)
+parser.add_argument('--embedding_dim', default=0, type=int)
 parser.add_argument('--num_layers', default=1, type=int)
 parser.add_argument('--dropout', default=0, type=float)
 parser.add_argument('--activation', default='relu', type=str)
