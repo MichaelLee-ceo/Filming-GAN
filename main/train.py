@@ -1,6 +1,7 @@
 import os
 import gc
 import sys
+import time
 import argparse
 import logging
 import wandb
@@ -161,6 +162,7 @@ def main(args):
         g_steps_left = args.g_steps
         d_steps_left = args.d_steps
 
+        start = time.time()
         for batch in train_loader:
             if g_steps_left > 0:
                 g_losses = generator_step(args, batch, generator, discriminator, g_loss_fn, optimizer_g)
@@ -174,6 +176,7 @@ def main(args):
 
             g_steps_left = args.g_steps
             d_steps_left = args.d_steps
+        logger.info('\nEpoch: ' + str(epoch) + '/' + str(args.num_epochs) + ', used ' + str(time.time() - start) + ' s')
 
         # print training losses of generator & discriminator
         for k, v in sorted(g_losses.items()):
@@ -184,9 +187,9 @@ def main(args):
             logger.info('  [D] {}: {:.3f}'.format(k, v))
             checkpoint['D_losses'][k].append(v)
             wandb.log({k: v})
-       
+
         # print training metrics of train_loader & val_loader
-        logger.info('\nEpoch: ' + str(epoch) + '/' + str(args.num_epochs))
+        # logger.info('\nEpoch: ' + str(epoch) + '/' + str(args.num_epochs))
         metrics_train = check_accuracy(args, train_loader, generator, discriminator, d_loss_fn)
         for k, v in sorted(metrics_train.items()):
             logger.info('  [train] {}: {:.3f}'.format(k, v))
