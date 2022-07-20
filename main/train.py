@@ -58,7 +58,7 @@ parser.add_argument('--g_steps', default=1, type=int)
 # Discriminator Options
 parser.add_argument('--encoder_h_dim_d', default=256, type=int)
 parser.add_argument('--d_mlp_dim', default=128, type=int)
-parser.add_argument('--clipping_threshold_d', default=0, type=float)
+parser.add_argument('--clipping_threshold_d', default=1.5, type=float)
 parser.add_argument('--d_learning_rate', default=0.001, type=float)
 parser.add_argument('--d_steps', default=1, type=int)
 
