@@ -153,6 +153,8 @@ def main(args):
             'metrics_train': defaultdict(list),
             'metrics_val': defaultdict(list),
             'best_epoch':0,
+            'best_ade': 0,
+            'best_fde': 0,
         }
 
 
@@ -207,12 +209,17 @@ def main(args):
         if metrics_val['ade'] == min_ade:
             logger.info('[INFO] New low for avg_disp_error')
             checkpoint['best_epoch'] = epoch
+            checkpoint['best_ade'] = metrics_val['ade']
+            checkpoint['best_fde'] = metrics_val['fde']
             checkpoint['best_g_state'] = generator.state_dict()
             checkpoint['best_d_state'] = discriminator.state_dict()
 
     checkpoint_path = os.path.join(args.model_path, 'model_%d.pt' % checkpoint['best_epoch'])
     logger.info('Saving checkpoint to {}'.format(checkpoint_path))
     torch.save(checkpoint, checkpoint_path)
+
+    print('Best ADE:', checkpoint['best_ade'])
+    print('Best FDE:', checkpoint['best_fde'])
 
     run.finish()
 
