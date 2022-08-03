@@ -2,6 +2,7 @@ import os
 import gc
 import sys
 import time
+import random
 import argparse
 import logging
 import wandb
@@ -12,7 +13,7 @@ from collections import defaultdict
 
 from data.loader import dataset_loader, data_loader
 from losses import gan_g_loss, gan_d_loss, l2_loss
-from utils import mkdir, get_dset_path, relative_to_abs, plot_traj, check_accuracy
+from utils import mkdir, get_dset_path, relative_to_abs, plot_traj, check_accuracy, evaluation
 from model_zoo.model import Generator, Discriminator
 from model_zoo.model import get_noise
 
@@ -23,15 +24,17 @@ logging.basicConfig(level=logging.INFO, format=FORMAT, stream=sys.stdout)
 logger = logging.getLogger(__name__)
 
 torch.backends.cudnn.benchmark = True
-torch.manual_seed(10)
-np.random.seed(10)
+SEED = 10
+torch.manual_seed(SEED)
+np.random.seed(SEED)
+random.seed(SEED)
 
 # Dataset options
 parser.add_argument('--dataset_name', default='opensfm', type=str)
 parser.add_argument('--delim', default='tab')
 parser.add_argument('--loader_num_workers', default=1, type=int)
-parser.add_argument('--obs_len', default=8, type=int)
-parser.add_argument('--pred_len', default=8, type=int)
+parser.add_argument('--obs_len', default=6, type=int)
+parser.add_argument('--pred_len', default=6, type=int)
 parser.add_argument('--skip', default=1, type=int)
 
 # Optimization
@@ -49,7 +52,7 @@ parser.add_argument('--batch_norm', default=True, type=bool)
 parser.add_argument('--encoder_h_dim_g', default=128, type=int)
 parser.add_argument('--decoder_h_dim_g', default=256, type=int)
 parser.add_argument('--g_mlp_dim', default=128, type=int)
-parser.add_argument('--noise_dim', default=16, type=int)
+parser.add_argument('--noise_dim', default=12, type=int)
 parser.add_argument('--noise_type', default='gaussian', type=str)
 parser.add_argument('--clipping_threshold_g', default=1.5, type=float)
 parser.add_argument('--g_learning_rate', default=0.001, type=float)
@@ -69,6 +72,8 @@ parser.add_argument('--best_k', default=1, type=int)
 # Output
 parser.add_argument('--model_path', default=os.path.join(os.getcwd(), 'models'), type=str)
 parser.add_argument('--pic_path', default='fgan_test', type=str)
+parser.add_argument('--restore_from_checkpoint', default=False, type=bool)
+parser.add_argument('--best_epoch', default=458, type=int)
 
 def main(args):
     train_path = get_dset_path(args.dataset_name, 'train')
@@ -88,17 +93,9 @@ def main(args):
     print('\n### len(train_dset):', len(train_dset))
     print('### len(val_dset):', len(val_dset))
 
-    pic_path = './pic_result/(fgan)' + 'ehg' + str(args.encoder_h_dim_g) + 'dhg' + str(args.decoder_h_dim_g) + 'ehd' + str(args.encoder_h_dim_d) + 'gmlp' + str(args.g_mlp_dim) + 'dmlp' + str(args.d_mlp_dim) + 'n' + str(args.noise_dim) + 'l2_' + str(args.l2_loss_weight) + '/'
+    pic_path = './pic_result/(fgan)' + 'o' + str(args.obs_len) + 'p' + str(args.pred_len) + 'ehg' + str(args.encoder_h_dim_g) + 'dhg' + str(args.decoder_h_dim_g) + 'ehd' + str(args.encoder_h_dim_d) + 'gmlp' + str(args.g_mlp_dim) + 'dmlp' + str(args.d_mlp_dim) + 'n' + str(args.noise_dim) + 'l2_' + str(args.l2_loss_weight) + '/'
     mkdir(pic_path)
     mkdir(args.model_path)
-
-    run = wandb.init(
-                    project="f-gan",
-                    name =  'ehg' + str(args.encoder_h_dim_g) + 'dhg' + str(args.decoder_h_dim_g) + 'ehd' + str(args.encoder_h_dim_d) + 'gmlp' + str(args.g_mlp_dim) + 'dmlp' + str(args.d_mlp_dim) + 'n' + str(args.noise_dim) + 'l2_' + str(args.l2_loss_weight),
-                    # name="obs_len(" + str(args.obs_len) + "), pred_len(" + str(args.pred_len) + "), batch_size(" + str(args.batch_size) + "), num_epochs(" + str(args.num_epochs) + "), noise(" + str(args.noise_dim) + ")",
-                    config=args,
-                    reinit=True
-                )
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print('\n[INFO] Using', device, 'for training.')
@@ -159,73 +156,83 @@ def main(args):
 
 
     # Start training
-    for epoch in range(1, args.num_epochs + 1):
-        gc.collect()
-        g_steps_left = args.g_steps
-        d_steps_left = args.d_steps
+    if not args.restore_from_checkpoint:
+        run = wandb.init(
+                    project="f-gan",
+                    name = 'o' + str(args.obs_len) + 'p' + str(args.pred_len) + 'ehg' + str(args.encoder_h_dim_g) + 'dhg' + str(args.decoder_h_dim_g) + 'ehd' + str(args.encoder_h_dim_d) + 'gmlp' + str(args.g_mlp_dim) + 'dmlp' + str(args.d_mlp_dim) + 'n' + str(args.noise_dim) + 'l2_' + str(args.l2_loss_weight),
+                    # name="obs_len(" + str(args.obs_len) + "), pred_len(" + str(args.pred_len) + "), batch_size(" + str(args.batch_size) + "), num_epochs(" + str(args.num_epochs) + "), noise(" + str(args.noise_dim) + ")",
+                    config=args,
+                    reinit=True
+                )
 
-        start = time.time()
-        for batch in train_loader:
-            if g_steps_left > 0:
-                g_losses = generator_step(args, batch, generator, discriminator, g_loss_fn, optimizer_g)
-                g_steps_left -= 1
-            if d_steps_left > 0:
-                d_losses = discriminator_step(args, batch, generator, discriminator, d_loss_fn, optimizer_d)
-                d_steps_left -= 1
-
-            if g_steps_left > 0 or d_steps_left > 0:
-                continue
-
+        for epoch in range(1, args.num_epochs + 1):
+            gc.collect()
             g_steps_left = args.g_steps
             d_steps_left = args.d_steps
-        logger.info('\nEpoch: ' + str(epoch) + '/' + str(args.num_epochs) + ', used ' + str(time.time() - start) + ' s')
 
-        # print training losses of generator & discriminator
-        for k, v in sorted(g_losses.items()):
-            logger.info('  [G] {}: {:.3f}'.format(k, v))
-            checkpoint['G_losses'][k].append(v)
-            wandb.log({k: v})
-        for k, v in sorted(d_losses.items()):
-            logger.info('  [D] {}: {:.3f}'.format(k, v))
-            checkpoint['D_losses'][k].append(v)
-            wandb.log({k: v})
+            start = time.time()
+            for batch in train_loader:
+                if g_steps_left > 0:
+                    g_losses = generator_step(args, batch, generator, discriminator, g_loss_fn, optimizer_g)
+                    g_steps_left -= 1
+                if d_steps_left > 0:
+                    d_losses = discriminator_step(args, batch, generator, discriminator, d_loss_fn, optimizer_d)
+                    d_steps_left -= 1
 
-        # print training metrics of train_loader & val_loader
-        # logger.info('\nEpoch: ' + str(epoch) + '/' + str(args.num_epochs))
-        metrics_train = check_accuracy(args, train_loader, generator, discriminator, d_loss_fn)
-        for k, v in sorted(metrics_train.items()):
-            logger.info('  [train] {}: {:.3f}'.format(k, v))
-            checkpoint['metrics_train'][k].append(v)
-            wandb.log({'train_' + k: v})
+                if g_steps_left > 0 or d_steps_left > 0:
+                    continue
 
-        metrics_val = check_accuracy(args, val_loader, generator, discriminator, d_loss_fn)
-        for k, v in sorted(metrics_val.items()):
-            logger.info('  [val] {}: {:.3f}'.format(k, v))
-            checkpoint['metrics_val'][k].append(v)
-            wandb.log({'val_' + k: v})
+                g_steps_left = args.g_steps
+                d_steps_left = args.d_steps
+            logger.info('\nEpoch: ' + str(epoch) + '/' + str(args.num_epochs) + ', used ' + str(time.time() - start) + ' s')
 
-        # saving best model state for the lowest average_displacement_error
-        min_ade = min(checkpoint['metrics_val']['ade'])
-        if metrics_val['ade'] == min_ade:
-            logger.info('[INFO] New low for avg_disp_error')
-            checkpoint['best_epoch'] = epoch
-            checkpoint['best_ade'] = metrics_val['ade']
-            checkpoint['best_fde'] = metrics_val['fde']
-            checkpoint['best_g_state'] = generator.state_dict()
-            checkpoint['best_d_state'] = discriminator.state_dict()
+            # print training losses of generator & discriminator
+            for k, v in sorted(g_losses.items()):
+                logger.info('  [G] {}: {:.3f}'.format(k, v))
+                checkpoint['G_losses'][k].append(v)
+                wandb.log({k: v, 'epoch': epoch})
+            for k, v in sorted(d_losses.items()):
+                logger.info('  [D] {}: {:.3f}'.format(k, v))
+                checkpoint['D_losses'][k].append(v)
+                wandb.log({k: v, 'epoch': epoch})
 
-    checkpoint_path = os.path.join(args.model_path, 'model_%d.pt' % checkpoint['best_epoch'])
-    logger.info('Saving checkpoint to {}'.format(checkpoint_path))
-    torch.save(checkpoint, checkpoint_path)
+            # print training metrics of train_loader & val_loader
+            # logger.info('\nEpoch: ' + str(epoch) + '/' + str(args.num_epochs))
+            metrics_train = check_accuracy(args, train_loader, generator, discriminator, d_loss_fn)
+            for k, v in sorted(metrics_train.items()):
+                logger.info('  [train] {}: {:.3f}'.format(k, v))
+                checkpoint['metrics_train'][k].append(v)
+                wandb.log({'train_' + k: v, 'epoch': epoch})
 
-    print('Best ADE:', checkpoint['best_ade'])
-    print('Best FDE:', checkpoint['best_fde'])
+            metrics_val = check_accuracy(args, val_loader, generator, discriminator, d_loss_fn)
+            for k, v in sorted(metrics_val.items()):
+                logger.info('  [val] {}: {:.3f}'.format(k, v))
+                checkpoint['metrics_val'][k].append(v)
+                wandb.log({'val_' + k: v, 'epoch': epoch})
 
-    run.finish()
+            # saving best model state for the lowest average_displacement_error
+            min_ade = min(checkpoint['metrics_val']['ade'])
+            if metrics_val['ade'] == min_ade:
+                logger.info('[INFO] New low for avg_disp_error')
+                checkpoint['best_epoch'] = epoch
+                checkpoint['best_ade'] = metrics_val['ade']
+                checkpoint['best_fde'] = metrics_val['fde']
+                checkpoint['best_g_state'] = generator.state_dict()
+                checkpoint['best_d_state'] = discriminator.state_dict()
+
+        logger.info('Best ADE: {}'.format(checkpoint['best_ade']))
+        logger.info('Best FDE: {}'.format(checkpoint['best_fde']))
+
+        checkpoint_path = os.path.join(args.model_path, 'model_%d.pt' % checkpoint['best_epoch'])
+        torch.save(checkpoint, checkpoint_path)
+        logger.info('Saving checkpoint to {}'.format(checkpoint_path))
+        run.finish()
+    else:
+        checkpoint_path = os.path.join(args.model_path, 'model_%d.pt' % args.best_epoch)
 
     # restore the generator from the best history state
     restore_from_checkpoint = torch.load(checkpoint_path)
-    generator.load_state_dict(checkpoint['best_g_state'])
+    generator.load_state_dict(restore_from_checkpoint['best_g_state'])
 
     generator.eval()
     for batch in train_loader:
@@ -255,6 +262,14 @@ def main(args):
         for bs in range(args.batch_size):
             plot_traj(traj_real[:, bs].cpu(), traj_fake[:, bs].cpu(), args.obs_len, pic_path, 'test_batch_' + str(bs))
         break
+
+
+    # evaluation metrics of training set and validation set
+    g_ade, g_fde = evaluation(args, train_loader, generator)
+    logger.info('FGAN [Train]: Pred Len: {}, ADE: {:.3f}, FDE: {:.3f}'.format(args.pred_len, g_ade, g_fde))
+
+    g_ade, g_fde = evaluation(args, val_loader, generator)
+    logger.info('FGAN [Val]: Pred Len: {}, ADE: {:.3f}, FDE: {:.3f}'.format(args.pred_len, g_ade, g_fde))
 
 
 

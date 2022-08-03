@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import random
 import logging
 import torch
 import torch.optim
@@ -12,7 +13,7 @@ from data.loader import data_loader, dataset_loader
 import argparse
 from collections import defaultdict
 import wandb
-from utils import mkdir, get_dset_path, relative_to_abs, plot_traj, check_accuracy, l2_loss
+from utils import mkdir, get_dset_path, relative_to_abs, plot_traj, check_accuracy, l2_loss, evaluation
 from model_zoo.seq2seq import Seq2Seq
 
 
@@ -21,15 +22,17 @@ logging.basicConfig(level=logging.INFO, format=FORMAT, stream=sys.stdout)
 logger = logging.getLogger(__name__)
 
 torch.backends.cudnn.benchmark = True
-torch.manual_seed(10)
-np.random.seed(10)
+SEED = 10
+torch.manual_seed(SEED)
+np.random.seed(SEED)
+random.seed(SEED)
 
 parser = argparse.ArgumentParser()
 # Dataset options
 parser.add_argument('--dataset_name', default='opensfm', type=str)
 parser.add_argument('--delim', default='tab')
-parser.add_argument('--obs_len', default=8, type=int)
-parser.add_argument('--pred_len', default=8, type=int)
+parser.add_argument('--obs_len', default=6, type=int)
+parser.add_argument('--pred_len', default=6, type=int)
 parser.add_argument('--skip', default=1, type=int)
 parser.add_argument('--pic_path', default='opensfm_test', type=str)
 parser.add_argument('--model_path', default=os.path.join(os.getcwd(), 'models'), type=str)
@@ -44,62 +47,63 @@ parser.add_argument('--drop_out', default=0, type=int)
 parser.add_argument('--embedding_dim', default=0, type=int)
 parser.add_argument('--hidden_dim', default=256, type=int)
 parser.add_argument('--num_layers', default=1, type=int)
+parser.add_argument('--restore_from_checkpoint', default=True, type=bool)
+parser.add_argument('--best_epoch', default=477, type=int)
 
 def main(args):
-    datasets = ['opensfm']
-    for name in datasets:
-        train_path = get_dset_path(name, 'train')
-        dataset = dataset_loader(args, train_path)
+    train_path = get_dset_path(args.dataset_name, 'train')
+    dataset = dataset_loader(args, train_path)
 
-        train_size = int(len(dataset) * 0.8)
-        val_size = len(dataset) - train_size
+    train_size = int(len(dataset) * 0.8)
+    val_size = len(dataset) - train_size
 
-        train_dset, val_dset = random_split(dataset, [train_size, val_size])
+    train_dset, val_dset = random_split(dataset, [train_size, val_size])
 
-        train_loader = data_loader(args, train_dset)
-        val_loader = data_loader(args, val_dset)
+    train_loader = data_loader(args, train_dset)
+    val_loader = data_loader(args, val_dset)
 
-        print('\n### len(train_dset):', len(train_dset))
-        print('### len(val_dset):', len(val_dset))
-        # print('### len(train_loader)', len(train_loader))
+    print('\n### len(train_dset):', len(train_dset))
+    print('### len(val_dset):', len(val_dset))
+    # print('### len(train_loader)', len(train_loader))
 
-        pic_path = './pic_result/' + name + '_lr' + str(args.lr) + 'dp' + str(args.drop_out) + 'em' + str(args.embedding_dim) + 'hd' + str(args.hidden_dim) + '/'
-        mkdir(pic_path)
-        mkdir(args.model_path)
+    pic_path = './pic_result/' + 'o' + str(args.obs_len) + 'p' + str(args.pred_len) + '_lr' + str(args.lr) + 'dp' + str(args.drop_out) + 'em' + str(args.embedding_dim) + 'hd' + str(args.hidden_dim) + '/'
+    mkdir(pic_path)
+    mkdir(args.model_path)
 
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        print('\n[INFO] Using', device, 'for training.')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print('\n[INFO] Using', device, 'for training.')
 
-        embedding_dim = args.embedding_dim
-        hidden_dim = args.hidden_dim
-        num_layers = args.num_layers
-        pred_len = args.pred_len
-        epochs = args.num_epochs
-        lr = args.lr
-        drop_out = args.drop_out
+    embedding_dim = args.embedding_dim
+    hidden_dim = args.hidden_dim
+    num_layers = args.num_layers
+    pred_len = args.pred_len
+    epochs = args.num_epochs
+    lr = args.lr
+    drop_out = args.drop_out
 
+    model = Seq2Seq(embedding_dim=embedding_dim, hidden_dim=hidden_dim, num_layers=num_layers, pred_len=pred_len, drop_out=drop_out)
+    model.type(torch.cuda.FloatTensor).train()
+    model.to(device)
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    # criterion = torch.nn.MSELoss()
+
+    checkpoint = {
+        'best_model_state': None,
+        'metrics_train': defaultdict(list),
+        'metrics_val': defaultdict(list),
+        'best_epoch':0,
+        'best_ade': 0,
+        'best_fde': 0,
+    }
+
+    if not args.restore_from_checkpoint:
         run = wandb.init(
-                project="seq2seq",
-                name= "L2(" + name + "), lr(" + str(args.lr) +  "), embedding_dim(" + str(args.embedding_dim) + "), dropout(" + str(args.drop_out) + "), hidden_dim(" + str(args.hidden_dim) + ")",
-                config=args,
-                reinit=True
-            )
-
-        model = Seq2Seq(embedding_dim=embedding_dim, hidden_dim=hidden_dim, num_layers=num_layers, pred_len=pred_len, drop_out=drop_out)
-        model.type(torch.cuda.FloatTensor).train()
-        model.to(device)
-
-        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-        # criterion = torch.nn.MSELoss()
-
-        checkpoint = {
-            'best_model_state': None,
-            'metrics_train': defaultdict(list),
-            'metrics_val': defaultdict(list),
-            'best_epoch':0,
-            'best_ade': 0,
-            'best_fde': 0,
-        }
+            project="seq2seq",
+            name= 'o' + str(args.obs_len) + 'p' + str(args.pred_len) + ", lr(" + str(args.lr) +  "), embedding_dim(" + str(args.embedding_dim) + "), dropout(" + str(args.drop_out) + "), hidden_dim(" + str(args.hidden_dim) + ")",
+            config=args,
+            reinit=True
+        )
 
         for epoch in range(1, epochs + 1):
             total_loss = 0
@@ -111,7 +115,6 @@ def main(args):
                 (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_rel_gt, non_linear_ped, loss_mask, seq_start_end) = batch
 
                 pred_traj_rel_fake = model(obs_traj_rel)
-                # pred_traj_fake = relative_to_abs(pred_traj_rel_fake, obs_traj[-1])
 
                 loss = l2_loss(pred_traj_rel_fake, pred_traj_rel_gt, loss_mask[:, args.obs_len:], mode='average')
 
@@ -124,23 +127,22 @@ def main(args):
 
                 # loss_mask_sum += torch.numel(loss_mask.data)
 
-            wandb.log({'loss': total_loss})
+            wandb.log({'loss': total_loss, 'epoch': epoch})
 
             logger.info('\nEpoch: ' + str(epoch) + '/' + str(args.num_epochs) + ', used ' + str(time.time() - start) + ' s')
             metrics_train = check_accuracy(args, train_loader, model)
             for k, v in sorted(metrics_train.items()):
                 logger.info('[train] {}: {:.3f}'.format(k, v))
                 checkpoint['metrics_train'][k].append(v)
-                wandb.log({'train_' + k: v})
+                wandb.log({'train_' + k: v, 'epoch': epoch})
 
             metrics_val = check_accuracy(args, val_loader, model)
             for k, v in sorted(metrics_val.items()):
                 logger.info('[val] {}: {:.3f}'.format(k, v))
                 checkpoint['metrics_val'][k].append(v)
-                wandb.log({'val_' + k: v})
+                wandb.log({'val_' + k: v, 'epoch': epoch})
 
             min_ade = min(checkpoint['metrics_val']['ade'])
-
             if metrics_val['ade'] == min_ade:
                 logger.info('\nNew low for avg_disp_error')
                 checkpoint['best_epoch'] = epoch
@@ -148,52 +150,59 @@ def main(args):
                 checkpoint['best_fde'] = metrics_val['fde']
                 checkpoint['best_model_state'] = model.state_dict()
 
+        logger.info('Best ADE: {}'.format(checkpoint['best_ade']))
+        logger.info('Best FDE: {}'.format(checkpoint['best_fde']))
+
         checkpoint_path = os.path.join(args.model_path, 'model_%s.pt' % checkpoint['best_epoch'])
         torch.save(checkpoint, checkpoint_path)
         logger.info('Saving checkpoint to {}'.format(checkpoint_path))
-
-        print('Best ADE:', checkpoint['best_ade'])
-        print('Best FDE:', checkpoint['best_fde'])
-
-        restore_path = checkpoint_path
-        logger.info('Restoring from checkpoint {}'.format(restore_path))
-        checkpoint = torch.load(restore_path)
-        model.load_state_dict(checkpoint['best_model_state'])
-
-        model.eval()
-        # testing for training data
-        for batch in train_loader:
-            batch = [tensor.cuda() for tensor in batch]
-            (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_ped, loss_mask, seq_start_end) = batch
-
-            pred_traj_fake_rel = model(obs_traj_rel)
-            pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
-
-            traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
-            traj_real = torch.cat([obs_traj, pred_traj_gt], dim=0)
-
-            for bs in range(args.batch_size):
-                plot_traj(traj_real[:, bs].cpu(), traj_fake[:, bs].cpu(), args.obs_len, pic_path, 'train_batch_' + str(bs))
-
-            break
-
-        # testing for validation data
-        for batch in val_loader:
-            batch = [tensor.cuda() for tensor in batch]
-            (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_ped, loss_mask, seq_start_end) = batch
-
-            pred_traj_fake_rel = model(obs_traj_rel)
-            pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
-
-            traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
-            traj_real = torch.cat([obs_traj, pred_traj_gt], dim=0)
-
-            for bs in range(args.batch_size):
-                plot_traj(traj_real[:, bs].cpu(), traj_fake[:, bs].cpu(), args.obs_len, pic_path, 'test_batch_' + str(bs))
-
-            break
-
         run.finish()
+    else:
+        checkpoint_path = os.path.join(args.model_path, 'model_%d.pt' % args.best_epoch)
+
+    restore_path = checkpoint_path
+    logger.info('Restoring from checkpoint {}'.format(restore_path))
+    restore_checkpoint = torch.load(restore_path)
+    model.load_state_dict(restore_checkpoint['best_model_state'])
+
+    model.eval()
+    # testing for training data
+    for batch in train_loader:
+        batch = [tensor.cuda() for tensor in batch]
+        (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_ped, loss_mask, seq_start_end) = batch
+
+        pred_traj_fake_rel = model(obs_traj_rel)
+        pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
+
+        traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
+        traj_real = torch.cat([obs_traj, pred_traj_gt], dim=0)
+
+        for bs in range(args.batch_size):
+            plot_traj(traj_real[:, bs].cpu(), traj_fake[:, bs].cpu(), args.obs_len, pic_path, 'train_batch_' + str(bs))
+        break
+
+    # testing for validation data
+    for batch in val_loader:
+        batch = [tensor.cuda() for tensor in batch]
+        (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel, non_linear_ped, loss_mask, seq_start_end) = batch
+
+        pred_traj_fake_rel = model(obs_traj_rel)
+        pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
+
+        traj_fake = torch.cat([obs_traj, pred_traj_fake], dim=0)
+        traj_real = torch.cat([obs_traj, pred_traj_gt], dim=0)
+
+        for bs in range(args.batch_size):
+            plot_traj(traj_real[:, bs].cpu(), traj_fake[:, bs].cpu(), args.obs_len, pic_path, 'test_batch_' + str(bs))
+        break
+
+    
+    # evaluation metrics of training set and validation set
+    s_ade, s_fde = evaluation(args, train_loader, model)
+    print('Seq2Seq [Train]: Pred Len: {}, ADE: {:.3f}, FDE: {:.3f}'.format(args.pred_len, s_ade, s_fde))
+
+    s_ade, s_fde = evaluation(args, val_loader, model)
+    print('Seq2Seq [Val]: Pred Len: {}, ADE: {:.3f}, FDE: {:.3f}'.format(args.pred_len, s_ade, s_fde))
 
 if __name__ == '__main__':
     args = parser.parse_args()

@@ -1,9 +1,10 @@
 import torch
+import random
 import numpy as np
 from torch.utils.data import DataLoader
 from .trajectories import TrajectoryDataset, seq_collate
 
-torch.manual_seed(10)
+torch.manual_seed(0)
 
 def seed_worker(worker_id):
     worker_seed = torch.initial_seed() % 2**32
@@ -24,7 +25,7 @@ def data_loader(args, dset):
         dset,
         batch_size=args.batch_size,
         shuffle=True,
-        # worker_init_fn=seed_worker,
+        worker_init_fn=seed_worker,
         num_workers=1,
         collate_fn=seq_collate)
     return loader

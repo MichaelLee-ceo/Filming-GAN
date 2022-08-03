@@ -1,13 +1,16 @@
 import os
 import csv
+import random
 import torch
 import torch.optim
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 
-torch.manual_seed(10)
-np.random.seed(10)
+SEED = 10
+torch.manual_seed(SEED)
+np.random.seed(SEED)
+random.seed(SEED)
 
 def mkdir(path):
     if not os.path.exists(path):
@@ -113,12 +116,45 @@ def plot_traj(real_traj, fake_traj, real_traj_len, pic_path, img_path='trajector
         print('[INFO] Saving' + pic_path + 'csv/fake/' + img_path + '.csv')
 
 
+def evaluation(args, loader, generator):
+    metrics = {}
+    disp_error, f_disp_error = [], []
+    total_traj = 0
+    loss_mask_sum = 0
+
+    generator.eval()
+    with torch.no_grad():
+        for batch in loader:
+            batch = [tensor.cuda() for tensor in batch]
+            (obs_traj, pred_traj_gt, obs_traj_rel, pred_traj_gt_rel,
+             non_linear_ped, loss_mask, seq_start_end) = batch
+            linear_ped = 1 - non_linear_ped
+            loss_mask = loss_mask[:, args.obs_len:]
+
+            pred_traj_fake_rel = generator(obs_traj_rel)
+            pred_traj_fake = relative_to_abs(pred_traj_fake_rel, obs_traj[-1])
+
+            ade = cal_ade(pred_traj_gt, pred_traj_fake, linear_ped, non_linear_ped)
+            fde = cal_fde(pred_traj_gt, pred_traj_fake, linear_ped, non_linear_ped)
+
+            disp_error.append(ade.item())
+            f_disp_error.append(fde.item())
+
+            loss_mask_sum += torch.numel(loss_mask.data)
+            total_traj += pred_traj_gt.size(1)
+
+    ade = sum(disp_error) / (total_traj * args.pred_len)
+    fde = sum(f_disp_error) / total_traj
+
+    return ade, fde
+
+
 def check_accuracy(args, loader, generator, discriminator, d_loss_fn):
     d_losses = []
     metrics = {}
-    g_l2_losses_abs, g_l2_losses_rel = ([],) * 2
-    disp_error, disp_error_l, disp_error_nl = ([],) * 3
-    f_disp_error, f_disp_error_l, f_disp_error_nl = ([],) * 3
+    g_l2_losses_abs, g_l2_losses_rel = [], []
+    disp_error, disp_error_l, disp_error_nl = [], [], []
+    f_disp_error, f_disp_error_l, f_disp_error_nl = [], [], []
     total_traj, total_traj_l, total_traj_nl = 0, 0, 0
     loss_mask_sum = 0
 

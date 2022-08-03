@@ -1,7 +1,7 @@
 import logging
 import os
 import math
-
+import random
 import numpy as np
 
 import torch
@@ -9,8 +9,10 @@ from torch.utils.data import Dataset
 
 logger = logging.getLogger(__name__)
 
-torch.manual_seed(10)
-np.random.seed(10)
+SEED = 10
+torch.manual_seed(SEED)
+np.random.seed(SEED)
+random.seed(SEED)
 
 
 def seq_collate(data):
@@ -108,7 +110,7 @@ class TrajectoryDataset(Dataset):
 
         count = 0
         for path in all_files:
-            print('### Reading file', path)
+            # print('### Reading file', path)
             data = read_file(path, delim)
 
             # standardization
